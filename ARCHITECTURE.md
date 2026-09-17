@@ -1,93 +1,131 @@
-# AI Writing Assistant - System Architecture
+# TextMorph — System Architecture
 
-This document outlines the detailed microservices architecture, data flow, machine learning deployment strategy, and infrastructure of the AI Writing Assistant platform.
-
-## 1. High-Level Overview
-
-The system is a production-grade, containerized microservices platform built primarily with **React (Frontend)** and **FastAPI (Backend)**. It relies on a distributed architecture where core text-generation capabilities are broken down into specialized NLP microservices. 
-
-It implements a **Retrieval-Augmented Generation (RAG)** pipeline for document context, and is fully orchestrated via **Docker Compose** with centralized metrics and caching.
+This document details the microservices architecture, data flow, inference pipeline, caching strategy, and infrastructure of the **TextMorph** platform.
 
 ---
 
-## 2. Component Architecture
+## 1. Architectural Overview
 
-### A. Frontend Application
-- **Stack**: React, Vite, Nginx.
-- **Role**: The user-facing Single Page Application (SPA).
-- **Deployment**: Built via a multi-stage Dockerfile (`frontend/Dockerfile`). The Node.js builder compiles the static assets, which are then served purely by a lightweight Nginx web server. 
+TextMorph is built on a **lean, 5-container architecture** designed for production reliability, fast iteration, and high-efficiency local LLM inference.
+
+Previously, the platform relied on 13 separate microservices (5 individual T5 model services, a Celery-based RAG worker, Qdrant vector database, Prometheus, Grafana, and OpenTelemetry). That topology required >12GB VRAM and >13GB RAM. 
+
+TextMorph consolidates text-processing tasks into a **single unified NLP inference service** powered by `llama-cpp-python` and 4-bit quantized GGUF models (e.g. Qwen2.5-7B/3B), reducing hardware demands to **~2.5GB VRAM and ~1.3GB RAM** while boosting generation quality.
+
+---
+
+## 2. Container Topology
+
+```
+                              ┌─────────────────────────────┐
+                              │       Client Browser        │
+                              └──────────────┬──────────────┘
+                                             │ HTTP :3000
+                                             ▼
+                              ┌─────────────────────────────┐
+                              │   frontend (React + Nginx)  │
+                              └──────────────┬──────────────┘
+                                             │ HTTP :8000
+                                             ▼
+                              ┌─────────────────────────────┐
+                              │    gateway (FastAPI)        │
+                              │  - JWT Auth & Route Mapping │
+                              │  - Audit Logging (asyncpg)  │
+                              │  - Request Trace ID & Latency│
+                              └──────┬───────────────┬──────┘
+                                     │               │
+                    Internal :8001   ▼               ▼
+             ┌─────────────────────────────┐   ┌───────────────────────────┐
+             │    nlp-service (FastAPI)    │   │      postgres:15          │
+             │  - llama-cpp-python (CUDA)  │   │  - User Auth / Profiles   │
+             │  - Qwen2.5 GGUF (4-bit)     │   │  - Request Audit Logs     │
+             │  - Task Prompts Engine      │   └───────────────────────────┘
+             └──────────────┬──────────────┘
+                            │
+                            ▼
+             ┌─────────────────────────────┐
+             │        redis:7-alpine       │
+             │  - SHA-256 Hashed LRU Cache │
+             │  - Sub-100ms Repeated Query │
+             └─────────────────────────────┘
+```
+
+---
+
+## 3. Core Components
+
+### A. Frontend (`frontend`)
+- **Technology**: React 18, Vite, Tailwind CSS, Lucide React icons.
+- **Role**: Clean Single Page Application (SPA) offering dedicated interfaces for:
+  - **Grammar & Spell Check**
+  - **Paraphrasing** (with style/tone selection)
+  - **Text Simplification** (reading level adjustment)
+  - **Summarization** (length sliders & point extraction)
+  - **Tone Shifter** (persuasive, formal, casual, empathetic, assertive)
+  - **System Health Monitor** (live latency & downstream connectivity)
+- **Deployment**: Multi-stage Docker build; compiled static files are served via Nginx on port 3000.
 
 ### B. API Gateway (`gateway`)
-- **Stack**: FastAPI, Uvicorn, SQLAlchemy (Async), asyncpg, PyJWT.
-- **Role**: The central entry point for the frontend. It handles:
-  - User Authentication & Authorization (JWT).
-  - Request routing to downstream NLP microservices.
-  - Relational Database interactions (PostgreSQL).
-- **Deployment**: Built via a multi-stage Dockerfile (`infra/docker/Dockerfile.gateway`) to strip build tools from the final runtime image.
+- **Technology**: FastAPI, Uvicorn, httpx, structlog, SQLAlchemy, asyncpg, PyJWT.
+- **Role**:
+  - Validates JWT tokens on protected routes.
+  - Normalizes external API payloads to downstream NLP inference requests.
+  - Injects `X-Trace-Id` headers and logs response durations (`X-Duration-Ms`).
+  - Asynchronously writes request audit trails into PostgreSQL.
+  - Aggregates readiness checks (`/readiness`) across downstream dependencies.
 
-### C. NLP Inference Services
-The core text-manipulation logic is decoupled into 5 independent microservices. 
-- **The Services**:
-  - `grammar-service` (e.g., T5-based grammar correction)
-  - `paraphrase-service`
-  - `simplify-service`
-  - `summarize-service`
-  - `tone-service`
-- **Stack**: FastAPI, PyTorch, Transformers, HuggingFace Accelerate, PEFT (Parameter-Efficient Fine-Tuning).
-- **ML Deployment Strategy**: 
-  - Each service runs a FastAPI server wrapping an LLM (Large Language Model) or Seq2Seq model.
-  - They utilize a shared library (`shared/adapter_loader.py`) to automatically detect hardware (CUDA/MPS/CPU) and dynamically load fine-tuned **LoRA adapters** on top of base models at runtime from a mounted `./models` volume.
+### C. Unified NLP Service (`nlp-service`)
+- **Technology**: FastAPI, `llama-cpp-python` (with CUDA acceleration via GGML), Redis.
+- **Model Engine**:
+  - Loads a quantized 4-bit GGUF model (`Qwen2.5-7B-Instruct-Q4_K_M.gguf` or `Qwen2.5-3B`) on container startup.
+  - Offloads model layers to native NVIDIA GPU (`n_gpu_layers=-1`), utilizing memory mapping (`use_mmap=True`) and 4096-token context window (`n_ctx=4096`).
+- **Prompt Engineering**:
+  - Applies task-specific system instructions (`TASK_PROMPTS` for grammar, paraphrase, simplify, summarize, tone) directly to the unified model.
+  - Enforces deterministic, consistent outputs with low temperature (`0.3`), top-p (`0.9`), and repetition penalty (`1.1`).
 
-### D. RAG Engine (`rag-service` & `rag-worker`)
-- **Stack**: FastAPI, Celery, Sentence-Transformers, PyMuPDF, Qdrant Client.
-- **Role**: Allows the AI to generate text grounded in user-provided documents.
-- **Architecture**:
-  - **API Service**: Handles incoming RAG queries and orchestrates the pipeline.
-  - **Celery Worker**: Asynchronously processes heavy document ingestion, chunking, and embedding generation in the background so the API remains non-blocking.
+### D. Redis Cache (`redis`)
+- **Technology**: Redis 7 Alpine with LRU eviction (`--maxmemory 256mb --maxmemory-policy allkeys-lru`).
+- **Role**:
+  - Keys are generated via SHA-256 hashing over `task:text:tone_target:max_length`.
+  - Duplicate user queries are resolved in `<100ms` without triggering GPU inference.
 
----
-
-## 3. Data layer & State Management
-
-- **PostgreSQL (Relational DB)**: Stores traditional relational data such as user accounts, document metadata, and usage analytics. Accessed via asynchronous SQLAlchemy (`asyncpg`).
-- **Redis (Cache & Message Broker)**: Serves a dual purpose:
-  1. High-speed caching for the API Gateway.
-  2. Message broker for the Celery task queue powering the asynchronous RAG worker.
-- **Qdrant (Vector DB)**: Stores the high-dimensional embeddings generated by the `rag-worker`. Enables ultra-fast semantic similarity search to retrieve relevant document chunks during RAG inference.
+### E. Relational Database (`postgres`)
+- **Technology**: PostgreSQL 15 Alpine.
+- **Role**:
+  - Persists user accounts, hashed credentials, and metadata.
+  - Stores audit logs for security, analytics, and operational monitoring.
 
 ---
 
-## 4. Shared Libraries (`/shared`)
-To enforce DRY (Don't Repeat Yourself) principles across the Python microservices, a `shared/` directory is mapped into the containers:
-- `model_utils.py`: Centralized hardware detection (CUDA GPU, Apple Silicon MPS, or CPU fallback) and dtype assignment (fp16 vs fp32).
-- `adapter_loader.py`: Reusable logic to load a base HuggingFace model, detect local PEFT LoRA adapters, and merge them for fast inference.
-- `logging.py`: Standardized JSON-based logging across all services.
+## 4. End-to-End Request Flow (e.g. Paraphrase)
+
+1. **Client** submits text and desired style to `POST http://localhost:8000/api/paraphrase`.
+2. **Gateway**:
+   - Verifies JWT bearer token.
+   - Generates/extracts `X-Trace-Id`.
+   - Packages parameters into `{ task: "paraphrase", text: "...", tone_target: "formal" }`.
+   - Dispatches internal HTTP POST to `http://nlp-service:8001/infer`.
+3. **NLP Service**:
+   - Computes SHA-256 hash `sha256(task + ":" + text + ":" + tone + ":" + max_length)`.
+   - Checks Redis: if cached, immediately returns `{ result: "...", cached: true, latency_ms: 0 }`.
+   - On cache miss, formats chat prompt with the paraphrasing system directive and user prompt.
+   - Executes inference through `llama-cpp-python` offloaded to GPU.
+   - Saves generated text to Redis with TTL.
+   - Returns `{ result: "...", cached: false, latency_ms: 320 }`.
+4. **Gateway**:
+   - Wraps result in `ParaphraseResponse(success=True, paraphrased_text=...)`.
+   - Asynchronously records audit entry in PostgreSQL.
+   - Returns response to Frontend with tracing headers.
+5. **Frontend** renders paraphrased text side-by-side with copy action.
 
 ---
 
-## 5. Infrastructure & Docker Optimization
+## 5. Hardware Specifications & Footprint
 
-The system relies on an aggressively optimized Docker infrastructure to handle massive Machine Learning dependencies without extreme disk bloat.
-
-### The Unified ML Base Image (`writing-assistant-ml-base`)
-Because 6 independent services (5 NLP + 1 RAG) all require PyTorch (`~2.5GB`) and Transformers, compiling them independently would result in `>50GB` of duplicate disk space usage. 
-- **Solution**: The `infra/docker/Dockerfile.ml-base` image pre-installs the heavy CUDA binaries and Python ML ecosystem.
-- **Layer Sharing**: All NLP services use `FROM writing-assistant-ml-base:latest`. Utilizing Docker's OverlayFS, the 9GB OS and ML layer is physically stored on the SSD only **once** and shared across all active containers.
-
-### Hardware Acceleration
-The `docker-compose.yml` is configured to map native NVIDIA GPUs directly into the inference containers using the `deploy.resources.reservations.devices` block, ensuring maximum throughput.
-
-### Observability
-- **Prometheus**: Scrapes metrics from the FastAPI servers (via `prometheus-fastapi-instrumentator`).
-- **Grafana**: Visualizes the metrics, allowing operators to monitor GPU VRAM usage, API latency, and model inference times.
-- **OpenTelemetry**: Integrated into the gateway for distributed tracing.
-
----
-
-## 6. Request Flow Example (Summarization)
-
-1. **Client** sends a POST request with text and a JWT to `http://localhost:8000/api/summarize`.
-2. **Gateway** validates the JWT, logs the request via OpenTelemetry, and forwards the payload to the internal `summarize-service:8000`.
-3. **Summarize Service** receives the text, tokenizes it, and runs it through the VRAM-loaded model (base model + Summarization LoRA).
-4. **Summarize Service** returns the generated summary to the Gateway.
-5. **Gateway** routes the response back to the React Frontend.
+| Component | Legacy Microservices (DocuMesh) | TextMorph Unified Architecture |
+|---|---|---|
+| Containers | 13 | **5** |
+| GPU VRAM Usage | ~8 – 12 GB | **~2.5 – 4.5 GB** |
+| System RAM Usage | ~13 GB+ | **~1.3 – 2.0 GB** |
+| Storage Footprint | >50 GB (PyTorch base images) | **<10 GB total** |
+| Repeated Query Latency | Model rerun (~1–3s) | **Sub-100ms (Redis Cache)** |

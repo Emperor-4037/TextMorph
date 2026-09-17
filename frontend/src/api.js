@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-// Use relative URLs so Vite's dev proxy handles routing to the gateway.
-// In production builds, VITE_API_BASE can be set to an absolute URL.
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
-
-// A demo JWT for development — in production the gateway validates real tokens
+const API_BASE = '';
 const DEMO_TOKEN = import.meta.env.VITE_DEMO_TOKEN ?? 'demo-token';
 
 const api = axios.create({
@@ -27,18 +23,3 @@ export const tone = (text, target_tone = 'professional') =>
 
 export const summarize = (text, max_length = 150) =>
   api.post('/api/summarize', { text, max_length });
-
-export const ragQuery = (query, top_k = 5) =>
-  api.post('/api/rag/query', { query, top_k });
-
-export const ragIngest = (file, onProgress) => {
-  const form = new FormData();
-  form.append('file', file);
-  return api.post('/api/rag/ingest', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: (e) => onProgress && onProgress(Math.round((e.loaded * 100) / e.total)),
-  });
-};
-
-export const ingestStatus = (taskId) =>
-  api.get(`/api/rag/ingest/status/${taskId}`);

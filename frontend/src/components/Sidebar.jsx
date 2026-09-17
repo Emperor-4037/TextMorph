@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import clsx from 'clsx';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Wand2, ShieldCheck, BookOpen, Mic2, AlignLeft,
   Database, LayoutDashboard
@@ -13,10 +12,9 @@ const NAV = [
   { id: 'simplify',   label: 'Simplify',     icon: BookOpen,    section: 'NLP Tools' },
   { id: 'tone',       label: 'Tone Adjust',  icon: Mic2,        section: 'NLP Tools' },
   { id: 'summarize',  label: 'Summarize',    icon: AlignLeft,   section: 'NLP Tools' },
-  { id: 'rag',        label: 'Doc Assistant',icon: Database,    section: 'RAG' },
 ];
 
-const SECTIONS = ['Overview', 'NLP Tools', 'RAG'];
+const SECTIONS = ['Overview', 'NLP Tools'];
 
 export default function Sidebar({ active, setActive }) {
   return (
@@ -37,8 +35,11 @@ export default function Sidebar({ active, setActive }) {
                   onClick={() => setActive(item.id)}
                   style={{ position: 'relative', background: 'transparent', border: 'none', width: '100%' }}
                 >
-                  <Icon size={18} className="nav-item-icon" style={{ zIndex: 2, position: 'relative', color: isActive ? '#fff' : 'inherit' }} />
-                  <span style={{ zIndex: 2, position: 'relative', color: isActive ? '#fff' : 'inherit' }}>{item.label}</span>
+                  <Icon size={18} className="nav-item-icon" style={{ zIndex: 2, position: 'relative', color: isActive ? '#fff' : item.badge ? 'var(--clr-muted)' : 'inherit', opacity: item.badge ? 0.6 : 1 }} />
+                  <span style={{ zIndex: 2, position: 'relative', color: isActive ? '#fff' : item.badge ? 'var(--clr-muted)' : 'inherit', opacity: item.badge ? 0.6 : 1 }}>{item.label}</span>
+                  {item.badge && (
+                    <span style={{ zIndex: 2, position: 'relative', fontSize: '0.6rem', padding: '1px 6px', borderRadius: 8, background: 'rgba(124,58,237,0.2)', color: 'var(--clr-accent)', fontWeight: 700, marginLeft: 'auto' }}>{item.badge}</span>
+                  )}
                   
                   {isActive && (
                     <motion.div

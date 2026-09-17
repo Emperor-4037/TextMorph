@@ -7,7 +7,7 @@ import { ResultBox, Spinner, FormGroup } from '../components/ui';
 
 export default function GrammarPage() {
   const [text, setText] = useState('');
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
@@ -15,10 +15,10 @@ export default function GrammarPage() {
     e.preventDefault();
     if (!text.trim()) return;
     setLoading(true);
-    setResult(null);
+    setResult('');
     try {
       const { data } = await grammar(text);
-      setResult(data);
+      setResult(data.corrected_text);
       toast('Grammar check complete!', 'success');
     } catch (err) {
       toast(err.response?.data?.detail ?? 'Grammar check failed', 'error');
@@ -31,7 +31,7 @@ export default function GrammarPage() {
     <PageWrapper>
       <div className="page-header">
         <h1>Grammar Fix</h1>
-        <p>Detect and correct grammatical errors with detailed corrections.</p>
+        <p>Detect and correct grammatical errors powered by Qwen 2.5.</p>
       </div>
 
       <div className="card" style={{ maxWidth: 760 }}>
@@ -41,7 +41,7 @@ export default function GrammarPage() {
           </div>
           <div>
             <div className="card-title">Grammar Checker</div>
-            <div className="card-desc">Powered by a grammar correction transformer model</div>
+            <div className="card-desc">Powered by a unified LLM — corrects grammar, punctuation, and spelling</div>
           </div>
         </div>
 
@@ -61,37 +61,19 @@ export default function GrammarPage() {
               {loading ? <Spinner /> : <ArrowRight size={16} />}
               {loading ? 'Checking…' : 'Check Grammar'}
             </button>
-            <button className="btn btn-secondary" type="button" onClick={() => { setText(''); setResult(null); }}>
+            <button className="btn btn-secondary" type="button" onClick={() => { setText(''); setResult(''); }}>
               Clear
             </button>
           </div>
         </form>
 
         {result && (
-          <div className="mt-4" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="form-label">Corrected Text</div>
-            <ResultBox text={result.corrected_text} />
-            {result.corrections?.length > 0 && (
-              <div>
-                <div className="form-label mb-2">
-                  Corrections ({result.corrections.length})&nbsp;
-                  <span className="badge badge-green">{result.corrections.length} found</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {result.corrections.map((c, i) => (
-                    <div key={i} className="card-glass" style={{ padding: '10px 14px' }}>
-                      <span style={{ color: 'var(--clr-error)', textDecoration: 'line-through', marginRight: 8 }}>{c.original}</span>
-                      <span style={{ color: 'var(--clr-success)' }}>→ {c.replacement}</span>
-                      {c.description && <div className="text-xs text-muted mt-2">{c.description}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="mt-4">
+            <div className="form-label mb-2">Corrected Text</div>
+            <ResultBox text={result} />
           </div>
         )}
       </div>
     </PageWrapper>
   );
 }
-

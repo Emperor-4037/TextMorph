@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Optional, List
 from pydantic import BaseModel, Field
 
 class BaseResponse(BaseModel):
@@ -23,16 +23,8 @@ class ParaphraseResponse(BaseResponse):
 class GrammarRequest(BaseModel):
     text: str = Field(..., min_length=1)
 
-class Correction(BaseModel):
-    original: str
-    replacement: str
-    start_index: int
-    end_index: int
-    description: str
-
 class GrammarResponse(BaseResponse):
     corrected_text: str
-    corrections: List[Correction] = []
 
 class SimplifyRequest(BaseModel):
     text: str = Field(..., min_length=1)
@@ -54,15 +46,3 @@ class SummarizeRequest(BaseModel):
 
 class SummarizeResponse(BaseResponse):
     summary: str
-    
-class ChunkMetadata(BaseModel):
-    source: str
-    page: Optional[int] = None
-
-class RAGQueryRequest(BaseModel):
-    query: str
-    top_k: int = 5
-
-class RAGQueryResponse(BaseResponse):
-    answer: str
-    sources: List[ChunkMetadata] = []

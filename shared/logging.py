@@ -1,21 +1,25 @@
 import logging
-import sys
-from pythonjsonlogger import jsonlogger
-from .config import settings
+import os
+import structlog
 
-def setup_logging(service_name: str) -> logging.Logger:
-    logger = logging.getLogger(service_name)
-    logger.setLevel(logging.INFO)
+def setup_logging(service_name: str) -> structlog.BoundLogger:
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
     
-    # Avoid duplicate handlers if setup multiple times
-    if not logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        
-        # We want JSON formatted logs for Datadog / ELK / CloudWatch, etc.
-        formatter = jsonlogger.JsonFormatter(
-            '%(asctime)s %(levelname)s %(name)s %(message)s'
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        
-    return logger
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, log_level, logging.INFO)
+        ),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+    
+    return structlog.get_logger(service=service_name)

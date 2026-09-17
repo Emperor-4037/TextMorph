@@ -1,4 +1,4 @@
-import { Wand2, ShieldCheck, BookOpen, Mic2, AlignLeft, Database, ArrowRight } from 'lucide-react';
+import { Wand2, ShieldCheck, BookOpen, Mic2, AlignLeft, ArrowRight, Cpu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import PageWrapper from '../components/PageWrapper';
 import HealthDashboard from '../components/HealthDashboard';
@@ -16,7 +16,7 @@ const TOOLS = [
     id: 'grammar',
     icon: ShieldCheck,
     label: 'Grammar Fix',
-    desc: 'Detect and correct grammatical errors with detailed diffs.',
+    desc: 'Detect and correct grammatical errors instantly.',
     color: '#34d399',
     bg: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(52,211,153,0.2))',
   },
@@ -40,27 +40,19 @@ const TOOLS = [
     id: 'summarize',
     icon: AlignLeft,
     label: 'Summarize',
-    desc: 'Condense long documents with abstractive BART summarization.',
+    desc: 'Condense long documents with Qwen2.5 summarization.',
     color: '#f87171',
     bg: 'linear-gradient(135deg, rgba(239,68,68,0.1), rgba(248,113,113,0.2))',
-  },
-  {
-    id: 'rag',
-    icon: Database,
-    label: 'Doc Assistant',
-    desc: 'Upload PDFs and chat with your documents using RAG + LLM.',
-    color: '#c084fc',
-    bg: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(192,132,252,0.2))',
   },
 ];
 
 const STATS = [
-  { label: 'Microservices', value: '6' },
-  { label: 'Vector DB', value: 'Qdrant' },
-  { label: 'LLM Model', value: 'TinyLlama' },
-  { label: 'Queue', value: 'Celery' },
-  { label: 'Metrics', value: 'Prometheus' },
-  { label: 'Tracing', value: 'OTLP' },
+  { label: 'Architecture', value: 'Unified' },
+  { label: 'LLM Model', value: 'Qwen2.5-7B' },
+  { label: 'Inference', value: 'llama.cpp' },
+  { label: 'API Gateway', value: 'FastAPI' },
+  { label: 'Cache', value: 'Redis' },
+  { label: 'Audit DB', value: 'PostgreSQL' },
 ];
 
 const containerVariants = {
@@ -82,7 +74,7 @@ export default function DashboardPage({ setActive }) {
       <div className="page-header">
         <motion.h1 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>AI Writing Assistant</motion.h1>
         <motion.p initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
-          A production-grade microservices platform for AI-powered text processing and document intelligence.
+          A highly-optimized, unified AI platform powered by a single quantized Qwen2.5 model.
         </motion.p>
       </div>
 
@@ -142,13 +134,12 @@ export default function DashboardPage({ setActive }) {
         transition={{ delay: 0.4 }}
       >
         <div className="flex items-center gap-3 mb-2">
-          <Database size={20} style={{ color: '#c4b5fd' }} />
+          <Cpu size={20} style={{ color: '#c4b5fd' }} />
           <span style={{ fontWeight: 800, fontSize: '1rem', color: '#fff', fontFamily: 'var(--font-heading)' }}>Platform Architecture</span>
         </div>
         <p className="text-sm text-muted" style={{ lineHeight: 1.8 }}>
-          All requests flow through the <strong style={{ color: '#d8b4fe' }}>FastAPI Gateway</strong> → individual microservices.
-          Document ingestion is handled asynchronously via <strong style={{ color: '#d8b4fe' }}>Celery + Redis</strong>.
-          Vectors are stored in <strong style={{ color: '#d8b4fe' }}>Qdrant</strong> and retrieved with hybrid search + cross-encoder reranking before being passed to <strong style={{ color: '#d8b4fe' }}>TinyLlama</strong>.
+          All requests flow through the <strong style={{ color: '#d8b4fe' }}>FastAPI Gateway</strong> and are routed to a single <strong style={{ color: '#d8b4fe' }}>Unified NLP Engine</strong>.
+          The engine runs <strong style={{ color: '#d8b4fe' }}>Qwen2.5-7B-Instruct (Q4_K_M)</strong> using <strong style={{ color: '#d8b4fe' }}>llama-cpp-python</strong> for high-speed, low-VRAM inference, with responses cached in <strong style={{ color: '#d8b4fe' }}>Redis</strong>.
         </p>
       </motion.div>
     </PageWrapper>

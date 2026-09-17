@@ -2,17 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Activity, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Use empty string so requests go through Vite's dev proxy
+const API_BASE = '';
 const DEMO_TOKEN = import.meta.env.VITE_DEMO_TOKEN ?? 'demo-token';
 
 const SERVICES = [
   { id: 'gateway', label: 'Gateway' },
-  { id: 'paraphrase', label: 'Paraphrase' },
-  { id: 'grammar', label: 'Grammar' },
-  { id: 'simplify', label: 'Simplify' },
-  { id: 'tone', label: 'Tone' },
-  { id: 'summarize', label: 'Summarize' },
-  { id: 'rag', label: 'RAG' },
+  { id: 'nlp', label: 'NLP Engine' },
 ];
 
 export default function HealthDashboard() {
@@ -23,10 +18,9 @@ export default function HealthDashboard() {
     setChecking(true);
     const results = {};
 
-    // Check gateway health first (proxied through Vite dev server)
     try {
       const start = Date.now();
-      const resp = await fetch('/health', {
+      const resp = await fetch(`${API_BASE}/health`, {
         headers: { Authorization: `Bearer ${DEMO_TOKEN}` },
         signal: AbortSignal.timeout(5000),
       });
@@ -36,10 +30,9 @@ export default function HealthDashboard() {
       results['gateway'] = { ok: false, latency: null, error: 'unreachable' };
     }
 
-    // Check all downstream services via the gateway's /readiness endpoint
     try {
       const start = Date.now();
-      const resp = await fetch('/readiness', {
+      const resp = await fetch(`${API_BASE}/readiness`, {
         headers: { Authorization: `Bearer ${DEMO_TOKEN}` },
         signal: AbortSignal.timeout(8000),
       });
@@ -47,7 +40,7 @@ export default function HealthDashboard() {
       if (resp.ok || resp.status === 503) {
         const data = await resp.json();
         const svcMap = data.services ?? {};
-        for (const svc of ['paraphrase', 'grammar', 'simplify', 'tone', 'summarize', 'rag']) {
+        for (const svc of ['nlp']) {
           const info = svcMap[svc];
           if (info) {
             results[svc] = { ok: info.status === 'ok', latency, status: info.code };
@@ -57,8 +50,7 @@ export default function HealthDashboard() {
         }
       }
     } catch {
-      // If readiness check fails, mark all downstream as unknown
-      for (const svc of ['paraphrase', 'grammar', 'simplify', 'tone', 'summarize', 'rag']) {
+      for (const svc of ['nlp']) {
         results[svc] = results[svc] ?? { ok: false, latency: null, error: 'unreachable' };
       }
     }

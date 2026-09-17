@@ -32,17 +32,17 @@ export default function SummarizePage() {
     <PageWrapper>
       <div className="page-header">
         <h1>Summarize</h1>
-        <p>Condense long documents into crisp, accurate summaries using BART.</p>
+        <p>Condense long documents into crisp, accurate summaries using Qwen2.5.</p>
       </div>
 
       <div className="card" style={{ maxWidth: 760 }}>
         <div className="card-header">
-          <div className="card-icon" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--clr-error)' }}>
+          <div className="card-icon" style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--clr-error)' }}>
             <AlignLeft size={20} />
           </div>
           <div>
             <div className="card-title">Text Summarizer</div>
-            <div className="card-desc">facebook/bart-large-cnn — abstractive summarization</div>
+            <div className="card-desc">Qwen2.5-7B-Instruct — abstractive summarization</div>
           </div>
         </div>
 

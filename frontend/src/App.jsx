@@ -9,7 +9,6 @@ import GrammarPage    from './pages/GrammarPage';
 import SimplifyPage   from './pages/SimplifyPage';
 import TonePage       from './pages/TonePage';
 import SummarizePage  from './pages/SummarizePage';
-import RagPage        from './pages/RagPage';
 import { AnimatePresence } from 'framer-motion';
 
 // page → component map
@@ -20,7 +19,6 @@ const PAGES = {
   simplify:   SimplifyPage,
   tone:       TonePage,
   summarize:  SummarizePage,
-  rag:        RagPage,
 };
 
 export default function App() {

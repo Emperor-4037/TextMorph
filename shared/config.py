@@ -12,16 +12,15 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     
-    # Vector DB (Qdrant)
-    QDRANT_HOST: str = "qdrant"
-    QDRANT_PORT: int = 6333
-    
     # Postgres
     POSTGRES_SERVER: str = "postgres"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "aiplatform"
+    
+    # NLP Service
+    NLP_SERVICE_URL: str = "http://nlp-service:8001"
     
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
